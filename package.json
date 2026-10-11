@@ -1,0 +1,19 @@
+{
+  "name": "video-editing-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tella recordings in, finished videos out: FFmpeg cleanup, HyperFrames graphics, Epidemic Sound music.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "doctor": "node vedit.js doctor",
+    "demo": "node vedit.js demo",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "gsap": "3.14.2",
+    "hyperframes": "0.8.147"
+  }
+}
