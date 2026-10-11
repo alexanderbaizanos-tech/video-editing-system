@@ -1,0 +1,10 @@
+node_modules/
+.env
+
+# Everything inside a project folder is yours and usually large (footage,
+# licensed music, renders). Only the example settings file is tracked.
+projects/*
+!projects/.gitkeep
+
+.DS_Store
+Thumbs.db

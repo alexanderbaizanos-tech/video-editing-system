@@ -1,0 +1,165 @@
+/*
+  Look and feel of the graphics HyperFrames draws over your footage.
+  To restyle one project only, copy this file to projects/<name>/assets/theme.css
+  and edit it there. The accent colour comes from project.json → brand.accent.
+*/
+
+:root {
+  --accent: #ff5a36;
+  --bg: #0b0b0f;
+  --text: #f5f5f7;
+  --muted: #a1a1aa;
+  --font: Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  color: var(--text);
+}
+
+/* Each graphic (intro, lower third, captions, outro) is its own
+   HyperFrames sub-composition, mounted full-frame over the footage. */
+.layer,
+.layer > [data-composition-id] {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---------- Intro and outro cards ---------- */
+.card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: radial-gradient(circle at 50% 40%, #1c1c24 0%, var(--bg) 70%);
+  text-align: center;
+  padding: 0 10%;
+}
+
+.card .logo {
+  max-height: 120px;
+  max-width: 40%;
+  object-fit: contain;
+}
+
+.card h1 {
+  font-size: 104px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.card p {
+  font-size: 40px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.card .bar {
+  width: 160px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  transform-origin: left center;
+}
+
+/* ---------- Main footage ---------- */
+#main-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* ---------- Lower third (name + role) ---------- */
+.lower-third {
+  position: absolute;
+  left: 80px;
+  bottom: 96px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.35));
+}
+
+.has-captions .lower-third {
+  bottom: 220px;
+}
+
+.lower-third .accent {
+  width: 12px;
+  background: var(--accent);
+  border-radius: 6px 0 0 6px;
+}
+
+.lower-third .text {
+  background: rgba(11, 11, 15, 0.88);
+  padding: 20px 36px 22px 28px;
+  border-radius: 0 10px 10px 0;
+}
+
+.lower-third .name {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.lower-third .role {
+  font-size: 28px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ---------- Captions ---------- */
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: 80px;
+  transform: translateX(-50%);
+  max-width: 76%;
+  padding: 14px 28px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.72);
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  /* hidden until its moment; the captions timeline switches each line on and off */
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* ---------- Outro ---------- */
+.card .cta {
+  margin-top: 12px;
+  padding: 18px 40px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 40px;
+  font-weight: 700;
+}
