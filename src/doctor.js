@@ -48,13 +48,13 @@ export async function cmdDoctor() {
 
   try {
     const { stdout } = await run('ffmpeg', ['-hide_banner', '-filters']);
-    const missing = ['silencedetect', 'loudnorm', 'sidechaincompress', 'amix', 'boxblur'].filter(
+    const missing = ['astats', 'ametadata', 'loudnorm', 'sidechaincompress', 'amix', 'boxblur'].filter(
       (f) => !new RegExp(`\\s${f}\\s`).test(stdout),
     );
     const { stdout: enc } = await run('ffmpeg', ['-hide_banner', '-encoders']);
     if (!/libx264/.test(enc)) missing.push('libx264 encoder');
     if (missing.length) fail('FFmpeg features', `missing: ${missing.join(', ')}`, `install a full FFmpeg build: ${hint('ffmpeg')}`);
-    else pass('FFmpeg features', 'silence detection, loudness, ducking, H.264');
+    else pass('FFmpeg features', 'pause detection, loudness, ducking, H.264');
   } catch {
     /* already reported above */
   }

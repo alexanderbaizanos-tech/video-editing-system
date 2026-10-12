@@ -157,3 +157,8 @@ export async function downloadFile(url, dest, { fetchImpl = globalThis.fetch, on
   renameSync(tmp, dest);
   return dest;
 }
+
+/** Quote a value for showing in a copy-pasteable command when it contains spaces. */
+export function quoteArg(value) {
+  return /[\s&()]/.test(value) ? `"${value}"` : value;
+}

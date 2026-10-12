@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, basename } from 'node:path';
-import { PROJECTS_DIR, UserError, ensureDir } from './util.js';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { join, basename, dirname, extname, resolve } from 'node:path';
+import { PROJECTS_DIR, UserError, ensureDir, quoteArg } from './util.js';
 
 /** Settings every new project starts with. Edit project.json to change them. */
 export function defaultProject(name, title) {
@@ -15,7 +15,8 @@ export function defaultProject(name, title) {
       trimStart: 0,
       trimEnd: null,
       cuts: [],
-      cutSilence: { enabled: true, thresholdDb: -35, minSilence: 0.8, padding: 0.2 },
+      // thresholdDb "auto" = -35 dB, moved up for noisy rooms or down for quiet mics.
+      cutSilence: { enabled: true, thresholdDb: 'auto', minSilence: 0.8, padding: 0.2 },
     },
     intro: { enabled: true, duration: 3 },
     lowerThird: { enabled: true, name: 'Your Name', role: 'Your role or channel', at: 1, duration: 5 },
@@ -29,12 +30,30 @@ export function defaultProject(name, title) {
   };
 }
 
-export function projectDir(name) {
-  if (!name) throw new UserError('Which project? Pass the project name, e.g. `node vedit.js prep my-video`.');
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) {
-    throw new UserError(`"${name}" is not a valid project name. Use letters, numbers, dashes and underscores.`);
+/**
+ * Turn what the user typed into a project folder name. Accepts a plain name
+ * ("My video") or a path to a folder inside projects/ ("projects\\My video\\").
+ */
+export function projectName(arg) {
+  if (!arg) throw new UserError('Which project? Pass the project name, e.g. `node vedit.js prep my-video`.');
+  let name = String(arg);
+  if (/[\\/]/.test(name)) {
+    const abs = resolve(name);
+    const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+    if (!same(dirname(abs), PROJECTS_DIR)) {
+      throw new UserError(`"${arg}" is not a folder inside ${PROJECTS_DIR}. Put the video in a folder there and pass the folder name.`);
+    }
+    name = basename(abs);
   }
-  return join(PROJECTS_DIR, name);
+  // Folder names Windows and macOS both allow, minus anything that could reach outside projects/.
+  if (!name.trim() || name.startsWith('.') || /[<>:"/\\|?*\x00-\x1f]/.test(name) || /[. ]$/.test(name)) {
+    throw new UserError(`"${arg}" can't be used as a project folder name. Avoid < > : " / \\ | ? * and a leading or trailing dot.`);
+  }
+  return name;
+}
+
+export function projectDir(name) {
+  return join(PROJECTS_DIR, projectName(name));
 }
 
 export function paths(name) {
@@ -58,7 +77,8 @@ export function paths(name) {
   };
 }
 
-export function createProject(name, { title } = {}) {
+export function createProject(arg, { title } = {}) {
+  const name = projectName(arg);
   const p = paths(name);
   if (existsSync(p.file)) throw new UserError(`Project "${name}" already exists at ${p.dir}`);
   for (const d of [p.raw, p.music, p.sfx, p.assets, p.build, p.exports]) ensureDir(d);
@@ -71,7 +91,7 @@ export function createProject(name, { title } = {}) {
 export function loadProject(name) {
   const p = paths(name);
   if (!existsSync(p.file)) {
-    throw new UserError(`No project called "${name}". Create it with: node vedit.js new ${name}`);
+    throw new UserError(`No project called "${name}". Create it with: node vedit.js new ${quoteArg(name)}`);
   }
   let data;
   try {
@@ -79,7 +99,56 @@ export function loadProject(name) {
   } catch (err) {
     throw new UserError(`project.json for "${name}" is not valid JSON: ${err.message}`);
   }
-  return mergeDefaults(defaultProject(name), data);
+  // The folder is the source of truth for the name, so renaming a folder just works.
+  return { ...mergeDefaults(defaultProject(projectName(name)), data), name: projectName(name) };
+}
+
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.mkv', '.webm', '.avi']);
+
+/** Video files sitting in a project folder (its top level and raw/), as paths relative to it. */
+export function findVideos(dir) {
+  const found = [];
+  for (const sub of ['', 'raw']) {
+    const d = join(dir, sub);
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d).sort()) {
+      if (VIDEO_EXTENSIONS.has(extname(f).toLowerCase()) && statSync(join(d, f)).isFile()) {
+        found.push(sub ? `${sub}/${f}` : f);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * Load a project, or set one up for a folder someone made by hand and dropped a
+ * video into. The video stays where it is; only project.json is added.
+ */
+export function adoptProject(arg, { file } = {}) {
+  const name = projectName(arg);
+  const p = paths(name);
+  if (!existsSync(p.dir)) {
+    throw new UserError(`There is no folder called "${name}" in ${PROJECTS_DIR}. Make it and put your video inside.`);
+  }
+  const project = existsSync(p.file) ? loadProject(name) : defaultProject(name);
+  if (file) {
+    if (!existsSync(join(p.dir, file))) throw new UserError(`"${file}" is not in ${p.dir}`);
+    project.source = { ...project.source, file: file.replace(/\\/g, '/') };
+  } else if (!project.source.file || !existsSync(join(p.dir, project.source.file))) {
+    const videos = findVideos(p.dir);
+    if (!videos.length) {
+      throw new UserError(`No video found in ${p.dir}. Put the .mp4 or .mov file in that folder, or use \`tella pull\` / \`import\`.`);
+    }
+    if (videos.length > 1) {
+      throw new UserError(
+        `Found ${videos.length} videos in ${p.dir}:\n${videos.map((v) => `  ${v}`).join('\n')}\n` +
+          `Pick one by adding --file, e.g. --file ${quoteArg(videos[0])}`,
+      );
+    }
+    project.source = { ...project.source, file: videos[0] };
+  }
+  saveProject(project);
+  return project;
 }
 
 export function saveProject(project) {

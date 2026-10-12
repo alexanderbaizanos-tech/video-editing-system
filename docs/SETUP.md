@@ -169,6 +169,43 @@ If both play with sound, **your setup is complete.**
 
 ---
 
+## Just removing dead space (quickest)
+
+If all you want is the pauses taken out, with no titles, music or other changes:
+
+1. In the `projects` folder, make a folder for the video, named anything you like
+   (spaces are fine), and put the video file inside it. For example:
+   ```
+   projects\My top 3 mistakes in the 1st 6 months of my startup\recording.mp4
+   ```
+2. In a terminal opened in the main `video-editing-system` folder, run the command
+   with the folder name in quotes:
+   ```bash
+   node vedit.js cut "My top 3 mistakes in the 1st 6 months of my startup"
+   ```
+3. The result is in that folder's `exports` subfolder, named
+   `<folder name> - cut.mp4`. Your original file is not changed.
+
+The picture size, frame rate and sound stay exactly as recorded; only the pauses are
+removed. The tool measures your background noise and speaking level, cuts pauses
+longer than 0.8 seconds, and leaves 0.2 seconds either side so speech doesn't sound
+clipped. It prints how much it removed and how to adjust it.
+
+To fine-tune, open the `project.json` the command created in your video's folder,
+change the numbers under `"edit"` → `"cutSilence"` (see the table in Step 10), and run
+the same command again:
+
+| If the result… | Change |
+| -------------- | ------ |
+| feels choppy, or word endings get clipped | `padding` to `0.3`, or `minSilence` to `1.2` |
+| still has too many slow pauses | `minSilence` to `0.5` |
+| cut out quiet words | `thresholdDb` to a number about 5 lower than the one the command printed, e.g. `-40` |
+| missed obvious pauses | `thresholdDb` to a number about 5 higher than the one printed, e.g. `-30` |
+
+More than one video in the folder? Add `--file "the file name.mp4"` to the command.
+
+---
+
 ## Making a real video
 
 ### Step 8 — Record in Tella
@@ -212,7 +249,7 @@ Open `projects/my-video/project.json` in a text editor. The settings you'll chan
 | `edit.cutSilence.enabled` | Cut long pauses automatically | `true` |
 | `edit.cutSilence.minSilence` | Only cut pauses longer than this many seconds | `0.8` |
 | `edit.cutSilence.padding` | Seconds of pause to keep either side of a cut | `0.2` |
-| `edit.cutSilence.thresholdDb` | What counts as silence; lower it (e.g. `-45`) if quiet words get cut | `-35` |
+| `edit.cutSilence.thresholdDb` | How quiet counts as a pause, in dB. `"auto"` starts at -35 and adjusts for your room noise and mic level (the command prints what it used). Set a number to override: lower (e.g. `-45`) if quiet words get cut | `"auto"` |
 | `edit.trimStart`, `edit.trimEnd` | Drop everything before/after these times (seconds in the recording) | `0`, `null` (end) |
 | `edit.cuts` | Extra cuts, e.g. `[{ "from": 61.5, "to": 74 }]` (seconds in the recording) | none |
 | `intro.enabled` / `outro.enabled` | Turn the cards on or off; `duration` sets their length | on, 3 s / 4 s |
@@ -319,7 +356,9 @@ build and render in one go.
 | Render says Chrome is missing | `npx hyperframes browser ensure` |
 | `Tella rejected the API key (401)` | Check `.env`; make a new key in Tella if needed |
 | Tella `403` | Downloads are turned off for that video in Tella; turn them on or download it by hand |
-| Quiet words get cut out | Lower `edit.cutSilence.thresholdDb` to `-45` and raise `padding` to `0.3` |
+| Quiet words get cut out | Set `edit.cutSilence.thresholdDb` about 5 lower than the value the command printed (e.g. `-40`) and raise `padding` to `0.3` |
+| No pauses were removed | Check the "treating audio below … dB" line the command prints; set `thresholdDb` about 5 higher than that |
+| `can't be used as a project folder name` | Rename the folder without `< > : " / \ \| ? *` and without a dot or space at the end |
 | Music too loud or quiet | Change `music.volumeDb` in `project.json` (more negative = quieter) |
 | Music link fails with 403/404 | Epidemic Sound download links expire. Get a fresh one and try again |
 | Screen-recording colours look washed out | Set `render.videoFrameFormat` to `"png"` in `project.json` and render again |
@@ -330,6 +369,7 @@ build and render in one go.
 ```
 node vedit.js doctor                          check the setup
 node vedit.js demo                            end-to-end test with generated media
+node vedit.js cut "<project folder>" [--file "video.mp4"]   only remove dead space
 node vedit.js new <project> [--title ".."]    create a project
 node vedit.js tella list                      list Tella recordings
 node vedit.js tella pull <project> <id>       export + download from Tella

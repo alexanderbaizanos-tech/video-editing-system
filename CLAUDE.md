@@ -7,6 +7,11 @@ Tella (recording) → FFmpeg (`prep`: cuts, conform, voice clean-up) → HyperFr
 masters to -14 LUFS, makes vertical/square exports).
 
 - User guide: `docs/SETUP.md`. Command list: `node vedit.js help`.
+- `node vedit.js cut "<folder>"` is the dead-space-only path: one FFmpeg pass, no
+  HyperFrames, original size/fps/audio. It adopts a folder in `projects/` that just has a
+  video dropped in (writes project.json). Folder names may contain spaces.
+- Pauses are found from 50 ms loudness windows (`measureLevels` → `findPauses`), not
+  FFmpeg's per-sample `silencedetect`, which real room noise breaks up.
 - Each video is `projects/<name>/project.json` plus media folders. `projects/` is
   git-ignored: never commit footage, music or renders (Epidemic Sound files are licensed).
 - After code changes run `npm test`; for pipeline changes also run `node vedit.js demo`

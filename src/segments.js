@@ -1,25 +1,53 @@
 // Pure helpers that decide which parts of the source recording to keep.
 // A segment is { start, end } in source seconds.
 
-/** Parse the `silencedetect` lines FFmpeg prints to stderr into [{ start, end }]. */
-export function parseSilenceDetect(stderr, sourceDuration) {
-  const silences = [];
-  let open = null;
+/**
+ * Parse the loudness readings FFmpeg prints with
+ * `astats=metadata=1:reset=1,ametadata=mode=print` into [{ t, db }]:
+ * one entry per short window, t = window start in seconds.
+ */
+export function parseLevels(stderr) {
+  const windows = [];
+  let t = null;
   for (const line of stderr.split('\n')) {
-    const s = line.match(/silence_start:\s*(-?[\d.]+)/);
-    if (s) {
-      open = Math.max(0, Number(s[1]));
+    const time = line.match(/pts_time:\s*(-?[\d.]+)/);
+    if (time) {
+      t = Number(time[1]);
       continue;
     }
-    const e = line.match(/silence_end:\s*([\d.]+)/);
-    if (e && open !== null) {
-      silences.push({ start: open, end: Number(e[1]) });
-      open = null;
+    const level = line.match(/lavfi\.astats\.Overall\.RMS_level=(\S+)/);
+    if (level && t !== null) {
+      const db = Number(level[1].replace('inf', 'Infinity'));
+      windows.push({ t, db: Number.isFinite(db) ? db : -120 });
+      t = null;
     }
   }
-  // A recording that ends in silence never prints silence_end.
-  if (open !== null && sourceDuration !== undefined) silences.push({ start: open, end: sourceDuration });
-  return silences;
+  return windows;
+}
+
+/**
+ * Pauses = runs of consecutive windows quieter than thresholdDb lasting at
+ * least minSilence seconds. Working on short-window loudness (not single
+ * samples) means a stray click or noise spike can't break up a pause.
+ */
+export function findPauses(windows, { thresholdDb, minSilence, windowSec, duration = Infinity }) {
+  const pauses = [];
+  let start = null;
+  let end = null;
+  const close = () => {
+    if (start !== null && end - start >= minSilence - 1e-9) pauses.push({ start, end: Math.min(end, duration) });
+    start = null;
+  };
+  for (const w of windows) {
+    if (w.db < thresholdDb) {
+      if (start === null) start = w.t;
+      end = w.t + windowSec;
+    } else {
+      close();
+    }
+  }
+  close();
+  return pauses;
 }
 
 /**
@@ -109,4 +137,37 @@ function clamp(n, lo, hi) {
 
 function round(n) {
   return Math.round(n * 1000) / 1000;
+}
+
+/** The p-th percentile (0–100) of a list of numbers. */
+export function percentile(values, p) {
+  if (!values.length) return NaN;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.round((p / 100) * (sorted.length - 1))));
+  return sorted[idx];
+}
+
+/**
+ * Pick the level below which audio counts as a pause, from loudness readings
+ * of short windows across the recording (dB RMS, one per 100 ms).
+ *
+ * Starts from `base` (-35 dB suits most mics), then keeps it at least 6 dB
+ * above the background noise (noisy rooms) and at least 15 dB below normal
+ * talking level (quiet mics), so neither case cuts everything or nothing.
+ */
+export function autoThreshold(levels, base = -35) {
+  const vals = levels.map((v) => (Number.isFinite(v) ? v : -120));
+  if (vals.length < 20) return { thresholdDb: base, noiseDb: null, speechDb: null, clear: true };
+  const noiseDb = percentile(vals, 10);
+  const speechDb = percentile(vals, 75);
+  const lo = noiseDb + 6;
+  const hi = speechDb - 15;
+  const thresholdDb = lo <= hi ? Math.min(hi, Math.max(lo, base)) : noiseDb + 0.4 * (speechDb - noiseDb);
+  return {
+    thresholdDb: Math.round(thresholdDb * 10) / 10,
+    noiseDb: Math.round(noiseDb * 10) / 10,
+    speechDb: Math.round(speechDb * 10) / 10,
+    // Under ~12 dB between talking and background, pauses are hard to tell apart.
+    clear: speechDb - noiseDb >= 12,
+  };
 }

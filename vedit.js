@@ -3,7 +3,7 @@
 // Run `node vedit.js help` for the list of commands.
 import { loadEnv, parseArgs, UserError } from './src/util.js';
 import {
-  cmdNew, cmdImport, cmdTella, cmdMusic, cmdSfx, cmdInfo, cmdPrep, cmdBuild, cmdPreview, cmdRender, cmdAll,
+  cmdNew, cmdCut, cmdImport, cmdTella, cmdMusic, cmdSfx, cmdInfo, cmdPrep, cmdBuild, cmdPreview, cmdRender, cmdAll,
 } from './src/commands.js';
 import { cmdDoctor } from './src/doctor.js';
 import { cmdDemo } from './src/demo.js';
@@ -14,6 +14,11 @@ vedit — video editing pipeline (Tella → FFmpeg → HyperFrames → Epidemic 
 Setup
   node vedit.js doctor                         check everything is installed
   node vedit.js demo                           run the whole pipeline on generated test media
+
+Just remove dead space (nothing else)
+  node vedit.js cut "<project folder>"         cuts pauses, keeps size, frame rate and sound as recorded
+      Put the video in projects/<project folder>/ first. Result: exports/<project folder> - cut.mp4
+      Several videos in the folder? Add --file "name.mp4"
 
 Start a video
   node vedit.js new <project> [--title "My Video"]
@@ -41,6 +46,7 @@ const COMMANDS = {
   doctor: cmdDoctor,
   demo: cmdDemo,
   new: cmdNew,
+  cut: cmdCut,
   import: cmdImport,
   tella: cmdTella,
   music: cmdMusic,

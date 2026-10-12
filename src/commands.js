@@ -1,20 +1,41 @@
 import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
-import { UserError, log, hyperframes, downloadFile, formatTime, round, ensureDir } from './util.js';
-import { createProject, loadProject, saveProject, paths, readPrep, timeline, resolveTime, safeFileName } from './project.js';
-import { prepFootage, master, reframe, thumbnail, EXPORT_SIZES } from './ffmpeg.js';
+import { UserError, log, hyperframes, downloadFile, formatTime, round, ensureDir, quoteArg } from './util.js';
+import { createProject, loadProject, saveProject, adoptProject, paths, readPrep, timeline, resolveTime, safeFileName } from './project.js';
+import { prepFootage, cutFootage, master, reframe, thumbnail, EXPORT_SIZES } from './ffmpeg.js';
 import { buildComposition } from './compose.js';
 import { TellaClient } from './tella.js';
 
 export function cmdNew([name], opts) {
-  const { paths: p } = createProject(name, { title: opts.title });
-  log.ok(`Created project "${name}"`);
+  const { project, paths: p } = createProject(name, { title: opts.title });
+  const q = quoteArg(project.name);
+  log.ok(`Created project "${project.name}"`);
   log.info(`Folder:   ${p.dir}`);
   log.info(`Settings: ${p.file}`);
   log.info('');
   log.info('Next, add your recording:');
-  log.info(`  from Tella:     node vedit.js tella pull ${name} <tella-video-id>`);
-  log.info(`  from a file:    node vedit.js import ${name} path/to/recording.mp4`);
+  log.info(`  from Tella:     node vedit.js tella pull ${q} <tella-video-id>`);
+  log.info(`  from a file:    node vedit.js import ${q} path/to/recording.mp4`);
+}
+
+/** Remove dead space and nothing else: one FFmpeg pass, original size, frame rate and sound. */
+export async function cmdCut([name], opts) {
+  const project = adoptProject(name, { file: opts.file });
+  const p = paths(project.name);
+  const source = join(p.dir, project.source.file);
+  ensureDir(p.build);
+  ensureDir(p.exports);
+  const output = join(p.exports, `${project.name} - cut.mp4`);
+
+  log.step(`Removing dead space from ${project.source.file}`);
+  const r = await cutFootage({ source, project, workDir: p.build, output, onStatus: log.info });
+  const pct = r.sourceDuration ? Math.round((r.removedSeconds / r.sourceDuration) * 100) : 0;
+  log.ok(output);
+  log.info(`${formatTime(r.sourceDuration)} → ${formatTime(r.duration)}: removed ${formatTime(r.removedSeconds)} (${pct}%) from ${r.silencesDetected} pause(s)`);
+  log.info('');
+  log.info(`Tune it in ${p.file} → "edit" → "cutSilence", then run this again:`);
+  log.info('  feels choppy / words clipped:   raise "padding" to 0.3, or "minSilence" to 1.2');
+  log.info('  still too many pauses:          lower "minSilence" to 0.5');
 }
 
 export function cmdImport([name, file]) {
@@ -158,10 +179,9 @@ export function cmdInfo([name], opts) {
   log.info(`Exports:  ${project.exports.join(', ')}`);
 }
 
-export async function cmdPrep([name]) {
-  const project = loadProject(name);
-  const p = paths(name);
-  if (!project.source.file) throw new UserError(`No recording yet. Use \`node vedit.js tella pull ${name} <id>\` or \`node vedit.js import ${name} <file>\`.`);
+export async function cmdPrep([name], opts = {}) {
+  const project = adoptProject(name, { file: opts.file });
+  const p = paths(project.name);
   const source = join(p.dir, project.source.file);
   if (!existsSync(source)) throw new UserError(`Recording not found: ${source}`);
   ensureDir(p.build);

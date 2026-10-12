@@ -24,7 +24,13 @@ node vedit.js doctor               # checks your setup
 node vedit.js demo                 # full test run with generated media
 ```
 
-Then for a real video:
+Only want the pauses cut out? Put the video in a folder inside `projects/` and run:
+
+```bash
+node vedit.js cut "My video folder"      # → projects/My video folder/exports/My video folder - cut.mp4
+```
+
+For the full treatment (titles, music, exports) on a real video:
 
 ```bash
 node vedit.js new my-video --title "How I Plan My Week"
@@ -37,7 +43,8 @@ Results land in `projects/my-video/exports/`.
 
 ## What you get
 
-- Long pauses cut automatically, frame-accurate, with picture and sound kept in sync
+- Long pauses cut automatically, frame-accurate, with picture and sound kept in sync; the pause level adapts to your room noise and mic
+- A `cut` command that does only that, keeping the recording's own size, frame rate and sound
 - Voice clean-up: rumble filter, gentle compression, level matching
 - Title card, animated name tag, optional captions (from an `.srt`/`.vtt` file or automatic transcription), end card with call to action
 - Music that dips while you talk and fades in and out, plus sound effects at the times you choose
